@@ -4,6 +4,12 @@ Rust TUI for browsing local Codex session logs, searching past chats, and estima
 
 https://github.com/user-attachments/assets/0869bcde-96be-4d98-9c07-c0586b0ea36a
 
+## Install
+
+```bash
+brew install --cask peterxcli/tap/codex-cost
+```
+
 ## Run
 
 ```bash
@@ -60,3 +66,16 @@ Built-in pricing includes GPT-5.5 token and web-search defaults. Override with `
   }
 }
 ```
+
+## Release
+
+Releases are tag-driven. Update `Cargo.toml`, commit the change, then push a matching `vX.Y.Z` tag:
+
+```bash
+git tag v0.1.1
+git push origin v0.1.1
+```
+
+The release workflow builds the macOS arm64 binary, publishes a GitHub release from `peterxcli/codex-cost`, publishes the Homebrew-downloadable tarball to `peterxcli/homebrew-tap`, and updates the tap cask.
+
+Repository setup requirement: add a `HOMEBREW_TAP_TOKEN` secret with permission to push to `peterxcli/homebrew-tap`.

@@ -1,0 +1,126 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  BIN_NAME: codex-cost
+  TARGET: aarch64-apple-darwin
+  TAP_REPO: peterxcli/homebrew-tap
+
+jobs:
+  release:
+    name: Release macOS arm64 binary
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ env.TARGET }}
+
+      - name: Validate tag version
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          cargo_version="$(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "codex-cost") | .version')"
+          if [ "${version}" != "${cargo_version}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match Cargo.toml version ${cargo_version}" >&2
+            exit 1
+          fi
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Build
+        run: cargo build --release --locked --target "${TARGET}"
+
+      - name: Package
+        id: package
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          asset="${BIN_NAME}-${TARGET}.tar.gz"
+          staging="$(mktemp -d)"
+          cp "target/${TARGET}/release/${BIN_NAME}" "${staging}/${BIN_NAME}"
+          tar -C "${staging}" -czf "${asset}" "${BIN_NAME}"
+          sha256="$(shasum -a 256 "${asset}" | awk '{print $1}')"
+          {
+            echo "version=${version}"
+            echo "asset=${asset}"
+            echo "sha256=${sha256}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.package.outputs.asset }}
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+
+      - name: Publish Homebrew tap release asset
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          set -euo pipefail
+          tap_tag="${BIN_NAME}-v${{ steps.package.outputs.version }}"
+          if gh release view "${tap_tag}" --repo "${TAP_REPO}" >/dev/null 2>&1; then
+            gh release upload "${tap_tag}" "${{ steps.package.outputs.asset }}" --repo "${TAP_REPO}" --clobber
+          else
+            gh release create "${tap_tag}" "${{ steps.package.outputs.asset }}" \
+              --repo "${TAP_REPO}" \
+              --target main \
+              --title "${BIN_NAME} v${{ steps.package.outputs.version }}" \
+              --notes "Homebrew Cask binary for ${BIN_NAME} v${{ steps.package.outputs.version }}."
+          fi
+
+      - name: Checkout Homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.TAP_REPO }}
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update Homebrew cask
+        run: |
+          set -euo pipefail
+          cask_path="homebrew-tap/Casks/${BIN_NAME}.rb"
+          mkdir -p "$(dirname "${cask_path}")"
+          cat > "${cask_path}" <<EOF
+          cask "${BIN_NAME}" do
+            version "${{ steps.package.outputs.version }}"
+            sha256 "${{ steps.package.outputs.sha256 }}"
+
+            url "https://github.com/${TAP_REPO}/releases/download/${BIN_NAME}-v#{version}/${BIN_NAME}-${TARGET}.tar.gz"
+            name "${BIN_NAME}"
+            desc "Terminal UI for inspecting Codex session token usage and cost estimates"
+            homepage "https://github.com/${GITHUB_REPOSITORY}"
+
+            depends_on arch: :arm64
+
+            binary "${BIN_NAME}"
+          end
+          EOF
+          ruby -pi -e 'gsub(/^ {10}/, "")' "${cask_path}"
+
+      - name: Commit Homebrew tap update
+        working-directory: homebrew-tap
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "Casks/${BIN_NAME}.rb"
+          if git diff --cached --quiet; then
+            echo "Homebrew cask already up to date."
+            exit 0
+          fi
+          git commit -m "Update ${BIN_NAME} to ${{ steps.package.outputs.version }}"
+          git push
