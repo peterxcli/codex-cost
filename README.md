@@ -1,8 +1,6 @@
 # codex-cost
 
-Rust terminal UI for browsing local Codex session logs and estimating API-equivalent cost.
-
-The loader handles both Codex Desktop/CLI rollout JSONL token-count events and saved Codex exec/result usage records.
+Rust TUI for browsing local Codex session logs, searching past chats, and estimating API-equivalent cost.
 
 ## Run
 
@@ -10,28 +8,41 @@ The loader handles both Codex Desktop/CLI rollout JSONL token-count events and s
 cargo run --release -- --sessions ~/.codex/sessions
 ```
 
-The default sessions folder is `$CODEX_HOME/sessions` when `CODEX_HOME` is set, otherwise `~/.codex/sessions`.
+Default session directory: `$CODEX_HOME/sessions`, or `~/.codex/sessions` when `CODEX_HOME` is unset.
+
+## Features
+
+- Fast persisted full-text search with an FST term index, prefix matching, match highlighting, and visible search cursor.
+- Persisted Merkle tree and file watcher; startup reuses cached sessions and live changes only re-index changed session files.
+- Search mode is explicit: `/` starts typing, `Enter` returns to browse, so query text can include browse shortcut keys.
+- Sort by total cost, time, tokens, web searches, model, session id, or first prompt. Default is total cost descending.
+- `index.lock` allows one cache writer. A second TUI prompts for read-only, quit, or force-write with an explicit corruption warning.
+- Cache files are disposable. Codex session JSONL files are the source of truth; if cache format/corruption is detected, delete the cache folder shown in the TUI.
 
 ## Controls
 
-- Type to search across session id, path, model, cwd, first prompt, and raw session text.
-- `Up` / `Down` or `j` / `k`: move selection.
-- `Enter`: toggle detail view.
-- `Tab`: switch list/detail focus.
-- `r`: reload session files.
-- `Esc`: clear search or return to list.
-- `q`: quit.
+- `/`: search mode
+- `Enter`: browse mode, or toggle detail while browsing
+- `Up` / `Down` or `j` / `k`: move selection
+- `Tab`: switch list/detail focus
+- `s`: next sort key
+- `S`: reverse sort direction
+- `r`: reload
+- `Esc`: clear search/back
+- `q`: quit
+
+## Options
+
+```bash
+codex-cost [--sessions PATH] [--pricing PATH] [--no-web-cost] [--read-only-index] [--force-index]
+```
+
+- `--read-only-index`: open without writing the persisted search cache.
+- `--force-index`: write without the lock. Use only after confirming no other TUI is running.
 
 ## Pricing
 
-Built-in pricing currently includes GPT-5.5 defaults:
-
-- input: `$5.00 / 1M`
-- cached input: `$0.50 / 1M`
-- output: `$30.00 / 1M`
-- web search: `$10.00 / 1K calls`
-
-You can override pricing with JSON:
+Built-in pricing includes GPT-5.5 token and web-search defaults. Override with `--pricing pricing.json`:
 
 ```json
 {
@@ -46,10 +57,4 @@ You can override pricing with JSON:
     }
   }
 }
-```
-
-Then run:
-
-```bash
-cargo run --release -- --pricing pricing.json
 ```
