@@ -60,8 +60,7 @@ jobs:
           set -euo pipefail
           package_asset() {
             local target="$1"
-            local arch="$2"
-            local asset="${BIN_NAME}-linux-${arch}.tar.gz"
+            local asset="${BIN_NAME}-${target}.tar.gz"
             local staging
             staging="$(mktemp -d)"
             cp "target/${target}/release/${BIN_NAME}" "${staging}/${BIN_NAME}"
@@ -70,8 +69,8 @@ jobs:
           }
 
           mkdir -p dist
-          package_asset "${TARGET_AMD64}" amd64
-          package_asset "${TARGET_ARM64}" arm64
+          package_asset "${TARGET_AMD64}"
+          package_asset "${TARGET_ARM64}"
 
       - name: Upload Linux assets
         uses: actions/upload-artifact@v4
@@ -189,18 +188,23 @@ jobs:
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
           cask_path="homebrew-tap/Casks/${BIN_NAME}.rb"
-          sha256_arm64="$(awk '{print $1}' "dist/${BIN_NAME}-aarch64-apple-darwin.tar.gz.sha256")"
-          sha256_intel="$(awk '{print $1}' "dist/${BIN_NAME}-x86_64-apple-darwin.tar.gz.sha256")"
+          sha256_macos_arm64="$(awk '{print $1}' "dist/${BIN_NAME}-aarch64-apple-darwin.tar.gz.sha256")"
+          sha256_macos_x86_64="$(awk '{print $1}' "dist/${BIN_NAME}-x86_64-apple-darwin.tar.gz.sha256")"
+          sha256_linux_arm64="$(awk '{print $1}' "dist/${BIN_NAME}-aarch64-unknown-linux-gnu.tar.gz.sha256")"
+          sha256_linux_x86_64="$(awk '{print $1}' "dist/${BIN_NAME}-x86_64-unknown-linux-gnu.tar.gz.sha256")"
           mkdir -p "$(dirname "${cask_path}")"
           cat > "${cask_path}" <<EOF_CASK
           cask "${BIN_NAME}" do
             version "${version}"
+            os macos: "apple-darwin", linux: "unknown-linux-gnu"
             arch arm: "aarch64", intel: "x86_64"
 
-            sha256 arm: "${sha256_arm64}",
-                   intel: "${sha256_intel}"
+            sha256 arm: "${sha256_macos_arm64}",
+                   x86_64: "${sha256_macos_x86_64}",
+                   arm64_linux: "${sha256_linux_arm64}",
+                   x86_64_linux: "${sha256_linux_x86_64}"
 
-            url "https://github.com/${TAP_REPO}/releases/download/${BIN_NAME}-v#{version}/${BIN_NAME}-#{arch}-apple-darwin.tar.gz"
+            url "https://github.com/${GITHUB_REPOSITORY}/releases/download/v#{version}/${BIN_NAME}-#{arch}-#{os}.tar.gz"
             name "${BIN_NAME}"
             desc "Terminal UI for inspecting Codex session token usage and cost estimates"
             homepage "https://github.com/${GITHUB_REPOSITORY}"

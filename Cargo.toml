@@ -1,6 +1,6 @@
 [package]
 name = "ccost"
-version = "0.2.9"
+version = "0.2.10"
 edition = "2021"
 rust-version = "1.75"
 description = "Terminal UI for inspecting Codex session token usage and cost estimates"
