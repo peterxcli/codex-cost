@@ -386,127 +386,145 @@ impl App {
     }
 
     pub(crate) fn handle_key(&mut self, key: KeyEvent) -> Result<bool> {
-        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+        if Self::is_control_c(key) {
             return Ok(true);
         }
 
-        if self.input_mode == InputMode::Search {
-            match key.code {
-                KeyCode::Enter => {
-                    self.input_mode = InputMode::Browse;
-                }
-                KeyCode::Esc => {
-                    self.input_mode = InputMode::Browse;
-                    if !self.query.is_empty() {
-                        self.query.clear();
-                        self.apply_filter();
-                    }
-                }
-                KeyCode::Backspace => {
-                    self.query.pop();
-                    self.apply_filter();
-                }
-                KeyCode::Char(c) => {
-                    if !key.modifiers.contains(KeyModifiers::CONTROL)
-                        && !key.modifiers.contains(KeyModifiers::ALT)
-                    {
-                        self.query.push(c);
-                        self.apply_filter();
-                    }
-                }
-                _ => {}
+        let should_quit = match self.input_mode {
+            InputMode::Search => {
+                self.handle_search_key(key);
+                false
             }
-            return Ok(false);
-        }
+            InputMode::Browse => self.handle_browse_key(key),
+        };
+        Ok(should_quit)
+    }
 
+    fn is_control_c(key: KeyEvent) -> bool {
+        key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c')
+    }
+
+    fn handle_search_key(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Char('q') => return Ok(true),
-            KeyCode::Esc => {
-                if self.show_detail {
-                    self.show_detail = false;
-                    self.focus = Focus::List;
-                } else if !self.query.is_empty() {
-                    self.query.clear();
-                    self.apply_filter();
-                }
-            }
-            KeyCode::Char('/') => {
-                self.input_mode = InputMode::Search;
-            }
             KeyCode::Enter => {
-                self.show_detail = !self.show_detail;
-                self.focus = if self.show_detail {
-                    Focus::Detail
-                } else {
-                    Focus::List
-                };
+                self.input_mode = InputMode::Browse;
             }
-            KeyCode::Tab => {
-                if self.show_detail {
-                    self.focus = match self.focus {
-                        Focus::List => Focus::Detail,
-                        Focus::Detail => Focus::List,
-                    };
-                }
+            KeyCode::Esc => {
+                self.input_mode = InputMode::Browse;
+                self.clear_query();
             }
             KeyCode::Backspace => {
                 self.query.pop();
                 self.apply_filter();
             }
-            KeyCode::Up => {
-                if self.focus == Focus::Detail {
-                    self.move_detail(-1);
-                } else {
-                    self.move_selection(-1);
-                }
+            KeyCode::Char(c) if Self::is_plain_text_key(key) => {
+                self.query.push(c);
+                self.apply_filter();
             }
-            KeyCode::Down => {
-                if self.focus == Focus::Detail {
-                    self.move_detail(1);
-                } else {
-                    self.move_selection(1);
-                }
+            _ => {}
+        }
+    }
+
+    fn handle_browse_key(&mut self, key: KeyEvent) -> bool {
+        match key.code {
+            KeyCode::Char('q') => true,
+            KeyCode::Esc => {
+                self.close_detail_or_clear_query();
+                false
+            }
+            KeyCode::Char('/') => {
+                self.input_mode = InputMode::Search;
+                false
+            }
+            KeyCode::Enter => {
+                self.toggle_detail();
+                false
+            }
+            KeyCode::Tab => {
+                self.toggle_focus();
+                false
+            }
+            KeyCode::Backspace => {
+                self.query.pop();
+                self.apply_filter();
+                false
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.move_focused(-1);
+                false
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.move_focused(1);
+                false
             }
             KeyCode::PageUp => {
-                if self.focus == Focus::Detail {
-                    self.move_detail(-10);
-                } else {
-                    self.move_selection(-10);
-                }
+                self.move_focused(-10);
+                false
             }
             KeyCode::PageDown => {
-                if self.focus == Focus::Detail {
-                    self.move_detail(10);
-                } else {
-                    self.move_selection(10);
-                }
-            }
-            KeyCode::Char('j') => {
-                if self.focus == Focus::Detail {
-                    self.move_detail(1);
-                } else {
-                    self.move_selection(1);
-                }
-            }
-            KeyCode::Char('k') => {
-                if self.focus == Focus::Detail {
-                    self.move_detail(-1);
-                } else {
-                    self.move_selection(-1);
-                }
+                self.move_focused(10);
+                false
             }
             KeyCode::Char('r') => {
                 self.start_reload();
+                false
             }
             KeyCode::Char('s') => {
                 self.cycle_sort_key();
+                false
             }
             KeyCode::Char('S') => {
                 self.reverse_sort_direction();
+                false
             }
-            KeyCode::Char(_) => {}
-            _ => {}
+            KeyCode::Char(_) | KeyCode::Null => false,
+            _ => false,
         }
-        Ok(false)
+    }
+
+    fn is_plain_text_key(key: KeyEvent) -> bool {
+        !key.modifiers.contains(KeyModifiers::CONTROL) && !key.modifiers.contains(KeyModifiers::ALT)
+    }
+
+    fn clear_query(&mut self) {
+        if !self.query.is_empty() {
+            self.query.clear();
+            self.apply_filter();
+        }
+    }
+
+    fn close_detail_or_clear_query(&mut self) {
+        if self.show_detail {
+            self.show_detail = false;
+            self.focus = Focus::List;
+        } else {
+            self.clear_query();
+        }
+    }
+
+    fn toggle_detail(&mut self) {
+        self.show_detail = !self.show_detail;
+        self.focus = if self.show_detail {
+            Focus::Detail
+        } else {
+            Focus::List
+        };
+    }
+
+    fn toggle_focus(&mut self) {
+        if self.show_detail {
+            self.focus = match self.focus {
+                Focus::List => Focus::Detail,
+                Focus::Detail => Focus::List,
+            };
+        }
+    }
+
+    fn move_focused(&mut self, delta: isize) {
+        if self.focus == Focus::Detail {
+            self.move_detail(delta);
+        } else {
+            self.move_selection(delta);
+        }
     }
 }
