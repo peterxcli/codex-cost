@@ -9,9 +9,9 @@ permissions:
   contents: write
 
 env:
-  PACKAGE_NAME: codex-cost
+  PACKAGE_NAME: ccost
   BIN_NAME: ccost
-  TAP_REPO: peterxcli/homebrew-tap
+  TAP_REPO: peterxcli/homebrew-ccost
 
 jobs:
   build-linux:
@@ -182,14 +182,13 @@ jobs:
         with:
           repository: ${{ env.TAP_REPO }}
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          path: homebrew-tap
+          path: homebrew-ccost
 
       - name: Update Homebrew cask
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
-          cask_path="homebrew-tap/Casks/${BIN_NAME}.rb"
-          legacy_cask_path="homebrew-tap/Casks/${PACKAGE_NAME}.rb"
+          cask_path="homebrew-ccost/Casks/${BIN_NAME}.rb"
           sha256_arm64="$(awk '{print $1}' "dist/${BIN_NAME}-aarch64-apple-darwin.tar.gz.sha256")"
           sha256_intel="$(awk '{print $1}' "dist/${BIN_NAME}-x86_64-apple-darwin.tar.gz.sha256")"
           mkdir -p "$(dirname "${cask_path}")"
@@ -210,18 +209,14 @@ jobs:
           end
           EOF_CASK
           ruby -pi -e 'gsub(/^ {10}/, "")' "${cask_path}"
-          rm -f "${legacy_cask_path}"
 
       - name: Commit Homebrew tap update
-        working-directory: homebrew-tap
+        working-directory: homebrew-ccost
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "Casks/${BIN_NAME}.rb"
-          if git ls-files --error-unmatch "Casks/${PACKAGE_NAME}.rb" >/dev/null 2>&1; then
-            git rm -f "Casks/${PACKAGE_NAME}.rb"
-          fi
           if git diff --cached --quiet; then
             echo "Homebrew cask already up to date."
             exit 0

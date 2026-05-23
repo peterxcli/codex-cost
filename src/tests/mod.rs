@@ -31,7 +31,7 @@ fn temp_dir(name: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let dir = std::env::temp_dir().join(format!("codex-cost-{name}-{nanos}"));
+    let dir = std::env::temp_dir().join(format!("ccost-{name}-{nanos}"));
     fs::create_dir_all(&dir).unwrap();
     dir
 }

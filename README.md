@@ -7,14 +7,7 @@ https://github.com/user-attachments/assets/0869bcde-96be-4d98-9c07-c0586b0ea36a
 ## Install
 
 ```bash
-brew install --cask peterxcli/tap/ccost
-```
-
-If you installed the older `codex-cost` cask or binary, remove it before reinstalling. For manual installs, delete the old `codex-cost` executable from your `PATH`.
-
-```bash
-brew uninstall --cask codex-cost
-brew install --cask peterxcli/tap/ccost
+brew install --cask peterxcli/ccost/ccost
 ```
 
 ## Run

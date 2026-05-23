@@ -106,7 +106,7 @@ pub(crate) fn cache_dir_for_sessions(root: &Path) -> PathBuf {
     let cache_root = dirs_next::cache_dir()
         .or_else(|| dirs_next::home_dir().map(|home| home.join(".cache")))
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("codex-cost")
+        .join("ccost")
         .join("index");
     cache_root.join(hash_hex(root.to_string_lossy().as_bytes()))
 }
