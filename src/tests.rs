@@ -1,8 +1,7 @@
 use crate::app::{App, Focus, InputMode, SortDirection, SortKey};
 use crate::cache::{
-    build_merkle_snapshot, cache_dir_for_sessions, load_cached_index, load_sessions_with_progress,
-    reconcile_session_cache, reconcile_session_cache_for_paths, CacheManifest,
-    CACHE_SCHEMA_VERSION,
+    build_merkle_snapshot, cache_dir_for_sessions, load_sessions_with_progress, CacheManifest,
+    CacheStore, CACHE_SCHEMA_VERSION,
 };
 use crate::models::{GoalUsage, Session, TokenEvent, TokenUsage};
 use crate::parser::SessionParser;
@@ -412,10 +411,9 @@ fn persisted_index_reuses_cached_snapshot_and_fst() {
     )
     .unwrap();
 
-    let first = reconcile_session_cache(&sessions_dir, &cache_dir, |_progress| {}).unwrap();
-    let cached = load_cached_index(&sessions_dir, &cache_dir)
-        .unwrap()
-        .expect("cache should load");
+    let cache_store = CacheStore::with_cache_dir(sessions_dir.clone(), cache_dir.clone());
+    let first = cache_store.reconcile(|_progress| {}).unwrap();
+    let cached = cache_store.load().unwrap().expect("cache should load");
 
     assert_eq!(cached.sessions.len(), 1);
     assert_eq!(cached.search_index.search("alpha cache"), vec![0]);
@@ -439,7 +437,7 @@ fn persisted_index_reuses_cached_snapshot_and_fst() {
         .to_string(),
     )
     .unwrap();
-    let second = reconcile_session_cache(&sessions_dir, &cache_dir, |_progress| {}).unwrap();
+    let second = cache_store.reconcile(|_progress| {}).unwrap();
 
     assert!(second.generation > first.generation);
     assert_eq!(second.sessions.len(), 1);
@@ -486,7 +484,8 @@ fn targeted_reconcile_updates_changed_session_postings() {
     )
     .unwrap();
 
-    reconcile_session_cache(&sessions_dir, &cache_dir, |_progress| {}).unwrap();
+    let cache_store = CacheStore::with_cache_dir(sessions_dir.clone(), cache_dir.clone());
+    cache_store.reconcile(|_progress| {}).unwrap();
     fs::write(
         &second_path,
         json!({
@@ -501,17 +500,13 @@ fn targeted_reconcile_updates_changed_session_postings() {
     )
     .unwrap();
     let mut progress = Vec::new();
-    let result = reconcile_session_cache_for_paths(
-        &sessions_dir,
-        &cache_dir,
-        BTreeSet::from([second_path.clone()]),
-        |update| {
+    let result = cache_store
+        .reconcile_paths(BTreeSet::from([second_path.clone()]), |update| {
             if update.phase == LoadPhase::Parsing {
                 progress.push((update.current, update.total));
             }
-        },
-    )
-    .unwrap();
+        })
+        .unwrap();
 
     assert_eq!(progress, vec![(1, 1)]);
     assert_eq!(result.sessions.len(), 2);
@@ -545,7 +540,8 @@ fn targeted_reconcile_adds_new_session_without_losing_old_postings() {
     )
     .unwrap();
 
-    reconcile_session_cache(&sessions_dir, &cache_dir, |_progress| {}).unwrap();
+    let cache_store = CacheStore::with_cache_dir(sessions_dir.clone(), cache_dir.clone());
+    cache_store.reconcile(|_progress| {}).unwrap();
     fs::write(
         &second_path,
         json!({
@@ -561,17 +557,13 @@ fn targeted_reconcile_adds_new_session_without_losing_old_postings() {
     .unwrap();
 
     let mut progress = Vec::new();
-    let result = reconcile_session_cache_for_paths(
-        &sessions_dir,
-        &cache_dir,
-        BTreeSet::from([second_path]),
-        |update| {
+    let result = cache_store
+        .reconcile_paths(BTreeSet::from([second_path]), |update| {
             if update.phase == LoadPhase::Parsing {
                 progress.push((update.current, update.total));
             }
-        },
-    )
-    .unwrap();
+        })
+        .unwrap();
 
     assert_eq!(progress, vec![(1, 1)]);
     assert_eq!(result.sessions.len(), 2);
@@ -800,7 +792,9 @@ fn stale_schema_cache_reports_delete_hint() {
     .unwrap();
     fs::write(cache_dir.join("sessions.json"), "{not valid json").unwrap();
 
-    let err = reconcile_session_cache(&sessions_dir, &cache_dir, |_progress| {})
+    let cache_store = CacheStore::with_cache_dir(sessions_dir.clone(), cache_dir.clone());
+    let err = cache_store
+        .reconcile(|_progress| {})
         .expect_err("stale schema cache should be rejected");
     let message = format!("{err:#}");
 

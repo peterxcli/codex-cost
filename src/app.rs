@@ -8,7 +8,7 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::widgets::{ListState, TableState};
 
-use crate::cache::cache_dir_for_sessions;
+use crate::cache::CacheStore;
 use crate::models::Session;
 use crate::pricing::{estimate_cost, CostEstimate, Pricing};
 use crate::search::SearchIndex;
@@ -187,7 +187,9 @@ impl App {
         include_web_cost: bool,
         index_launch_mode: IndexLaunchMode,
     ) -> Result<Self> {
-        let cache_dir = cache_dir_for_sessions(&sessions_dir);
+        let cache_dir = CacheStore::new(sessions_dir.clone())
+            .cache_dir()
+            .to_path_buf();
         Ok(Self {
             sessions_dir,
             cache_dir,

@@ -111,7 +111,54 @@ pub(crate) fn cache_dir_for_sessions(root: &Path) -> PathBuf {
     cache_root.join(hash_hex(root.to_string_lossy().as_bytes()))
 }
 
-pub(crate) fn load_cached_index(root: &Path, cache_dir: &Path) -> Result<Option<LoadResult>> {
+#[derive(Clone, Debug)]
+pub(crate) struct CacheStore {
+    root: PathBuf,
+    cache_dir: PathBuf,
+}
+
+impl CacheStore {
+    pub(crate) fn new(root: PathBuf) -> Self {
+        let cache_dir = cache_dir_for_sessions(&root);
+        Self { root, cache_dir }
+    }
+
+    pub(crate) fn with_cache_dir(root: PathBuf, cache_dir: PathBuf) -> Self {
+        Self { root, cache_dir }
+    }
+
+    pub(crate) fn root(&self) -> &Path {
+        &self.root
+    }
+
+    pub(crate) fn cache_dir(&self) -> &Path {
+        &self.cache_dir
+    }
+
+    pub(crate) fn load(&self) -> Result<Option<LoadResult>> {
+        load_cached_index(self.root(), self.cache_dir())
+    }
+
+    pub(crate) fn reconcile<F>(&self, progress: F) -> Result<LoadResult>
+    where
+        F: FnMut(LoadProgress),
+    {
+        reconcile_session_cache(self.root(), self.cache_dir(), progress)
+    }
+
+    pub(crate) fn reconcile_paths<F>(
+        &self,
+        paths: BTreeSet<PathBuf>,
+        progress: F,
+    ) -> Result<LoadResult>
+    where
+        F: FnMut(LoadProgress),
+    {
+        reconcile_session_cache_for_paths(self.root(), self.cache_dir(), paths, progress)
+    }
+}
+
+fn load_cached_index(root: &Path, cache_dir: &Path) -> Result<Option<LoadResult>> {
     let manifest_path = cache_dir.join("manifest.json");
     if !manifest_path.exists() {
         return Ok(None);
@@ -150,11 +197,7 @@ pub(crate) fn load_cached_index(root: &Path, cache_dir: &Path) -> Result<Option<
     }))
 }
 
-pub(crate) fn reconcile_session_cache<F>(
-    root: &Path,
-    cache_dir: &Path,
-    mut progress: F,
-) -> Result<LoadResult>
+fn reconcile_session_cache<F>(root: &Path, cache_dir: &Path, mut progress: F) -> Result<LoadResult>
 where
     F: FnMut(LoadProgress),
 {
@@ -288,7 +331,7 @@ where
     })
 }
 
-pub(crate) fn reconcile_session_cache_for_paths<F>(
+fn reconcile_session_cache_for_paths<F>(
     root: &Path,
     cache_dir: &Path,
     paths: BTreeSet<PathBuf>,
@@ -883,7 +926,7 @@ pub(crate) fn load_sessions_with_progress<F>(root: &Path, mut progress: F) -> Re
 where
     F: FnMut(LoadProgress),
 {
-    reconcile_session_cache(root, &cache_dir_for_sessions(root), |load_progress| {
+    CacheStore::new(root.to_path_buf()).reconcile(|load_progress| {
         progress(load_progress);
     })
 }

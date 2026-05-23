@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Result};
 
 use crate::app::App;
-use crate::cache::cache_dir_for_sessions;
+use crate::cache::CacheStore;
 use crate::pricing::Pricing;
 use crate::ui::run_tui;
 use crate::worker::{index_lock_path, IndexLock, IndexWorkerMode};
@@ -21,7 +21,9 @@ pub(crate) struct Args {
 pub fn run() -> Result<()> {
     let args = Args::parse()?;
     let sessions_dir = args.sessions.clone().unwrap_or_else(default_sessions_dir);
-    let cache_dir = cache_dir_for_sessions(&sessions_dir);
+    let cache_dir = CacheStore::new(sessions_dir.clone())
+        .cache_dir()
+        .to_path_buf();
     let index_worker_mode = choose_index_worker_mode(&args, &cache_dir)?;
     let pricing = Pricing::load(args.pricing.as_deref())?;
     let app = App::new(sessions_dir, pricing, !args.no_web_cost, index_worker_mode)?;

@@ -12,9 +12,7 @@ use notify::{
     Config as NotifyConfig, Event as NotifyEvent, RecommendedWatcher, RecursiveMode, Watcher,
 };
 
-use crate::cache::{
-    load_cached_index, load_manifest, reconcile_session_cache, reconcile_session_cache_for_paths,
-};
+use crate::cache::{load_manifest, CacheStore};
 use crate::models::Session;
 use crate::search::SearchIndex;
 
@@ -199,7 +197,8 @@ pub(crate) fn run_readonly_index_worker(
         "{mode}; reading cached snapshots from {}",
         cache_dir.display()
     )));
-    match load_cached_index(&root, &cache_dir) {
+    let cache_store = CacheStore::with_cache_dir(root.clone(), cache_dir.clone());
+    match cache_store.load() {
         Ok(Some(result)) => {
             let _ = tx.send(LoadMessage::Loaded(Ok(result)));
         }
@@ -216,7 +215,8 @@ pub(crate) fn run_readonly_index_worker(
 }
 
 pub(crate) fn send_cached_snapshot(root: &Path, cache_dir: &Path, tx: &Sender<LoadMessage>) {
-    match load_cached_index(root, cache_dir) {
+    let cache_store = CacheStore::with_cache_dir(root.to_path_buf(), cache_dir.to_path_buf());
+    match cache_store.load() {
         Ok(Some(result)) => {
             let _ = tx.send(LoadMessage::Loaded(Ok(result)));
         }
@@ -234,7 +234,8 @@ pub(crate) fn send_reconciled_cache(
     cache_dir: &Path,
     tx: &Sender<LoadMessage>,
 ) -> bool {
-    match reconcile_session_cache(root, cache_dir, |progress| {
+    let cache_store = CacheStore::with_cache_dir(root.to_path_buf(), cache_dir.to_path_buf());
+    match cache_store.reconcile(|progress| {
         let _ = tx.send(LoadMessage::Progress(progress));
     }) {
         Ok(result) => {
@@ -254,10 +255,12 @@ pub(crate) fn send_reconciled_cache_for_paths(
     tx: &Sender<LoadMessage>,
     paths: BTreeSet<PathBuf>,
 ) {
-    let result = reconcile_session_cache_for_paths(root, cache_dir, paths, |progress| {
-        let _ = tx.send(LoadMessage::Progress(progress));
-    })
-    .map_err(|err| format!("{err:#}"));
+    let cache_store = CacheStore::with_cache_dir(root.to_path_buf(), cache_dir.to_path_buf());
+    let result = cache_store
+        .reconcile_paths(paths, |progress| {
+            let _ = tx.send(LoadMessage::Progress(progress));
+        })
+        .map_err(|err| format!("{err:#}"));
     let _ = tx.send(LoadMessage::Loaded(result));
 }
 
@@ -335,7 +338,8 @@ pub(crate) fn run_readonly_manifest_poll(
             continue;
         }
         seen_generation = manifest.generation;
-        match load_cached_index(&root, &cache_dir) {
+        let cache_store = CacheStore::with_cache_dir(root.clone(), cache_dir.clone());
+        match cache_store.load() {
             Ok(Some(result)) => {
                 if tx.send(LoadMessage::Loaded(Ok(result))).is_err() {
                     break;
