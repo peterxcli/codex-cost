@@ -11,7 +11,6 @@ use crate::ui::run_tui;
 use crate::worker::{index_lock_path, IndexLock, IndexWorkerMode};
 
 const APP_NAME: &str = "ccost";
-const LEGACY_APP_NAME: &str = "codex-cost";
 
 #[derive(Debug, Default)]
 pub(crate) struct Args {
@@ -85,11 +84,10 @@ impl Args {
 
 pub(crate) fn print_help() {
     println!(
-        "{} {}\n\nUSAGE:\n    {} [--sessions PATH] [--pricing PATH] [--no-web-cost]\n\nOPTIONS:\n    --sessions PATH      Codex or Claude Code session directory containing JSONL files\n    --pricing PATH       Optional pricing JSON override\n    --no-web-cost        Disable web-search call cost in estimates\n    --read-only-index    Open without writing the persisted search cache\n    --force-index        Write the cache even when index.lock is held; can corrupt cache data\n    -h, --help           Print help\n    -V, --version        Print version\n\nALIAS:\n    {} remains available as a compatibility alias",
+        "{} {}\n\nUSAGE:\n    {} [--sessions PATH] [--pricing PATH] [--no-web-cost]\n\nOPTIONS:\n    --sessions PATH      Codex or Claude Code session directory containing JSONL files\n    --pricing PATH       Optional pricing JSON override\n    --no-web-cost        Disable web-search call cost in estimates\n    --read-only-index    Open without writing the persisted search cache\n    --force-index        Write the cache even when index.lock is held; can corrupt cache data\n    -h, --help           Print help\n    -V, --version        Print version",
         APP_NAME,
         env!("CARGO_PKG_VERSION"),
-        APP_NAME,
-        LEGACY_APP_NAME
+        APP_NAME
     );
 }
 
@@ -124,7 +122,7 @@ pub(crate) fn prompt_locked_index_mode(cache_dir: &Path) -> Result<IndexWorkerMo
         }
     }
     eprintln!(
-        "Use read-only mode to browse the current cached index. Force writing only if you have verified that no other ccost/codex-cost instance is running; forcing while another writer is active can corrupt the persisted cache."
+        "Use read-only mode to browse the current cached index. Force writing only if you have verified that no other ccost instance is running; forcing while another writer is active can corrupt the persisted cache."
     );
 
     loop {

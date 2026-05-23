@@ -1,4 +1,4 @@
-# codex-cost
+# ccost
 
 Rust TUI for browsing local Codex and Claude Code session logs, searching past chats, and estimating API-equivalent cost.
 
@@ -7,6 +7,13 @@ https://github.com/user-attachments/assets/0869bcde-96be-4d98-9c07-c0586b0ea36a
 ## Install
 
 ```bash
+brew install --cask peterxcli/tap/ccost
+```
+
+If you installed the older `codex-cost` cask or binary, remove it before reinstalling. For manual installs, delete the old `codex-cost` executable from your `PATH`.
+
+```bash
+brew uninstall --cask codex-cost
 brew install --cask peterxcli/tap/ccost
 ```
 
@@ -23,7 +30,6 @@ ccost --sessions ~/.claude/projects
 ```
 
 Default session directory: `$CODEX_HOME/sessions`, or `~/.codex/sessions` when `CODEX_HOME` is unset.
-`codex-cost` remains available as a compatibility alias.
 
 ## Features
 
