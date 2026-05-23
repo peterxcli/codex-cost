@@ -5,7 +5,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
-use crate::Session;
+use crate::models::Session;
 
 #[derive(Clone, Debug, Deserialize)]
 pub(crate) struct PricingFile {

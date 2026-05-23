@@ -4,7 +4,7 @@ use anyhow::Result;
 use fst::automaton::Str;
 use fst::{Automaton, IntoStreamer, Set, SetBuilder, Streamer};
 
-use crate::Session;
+use crate::models::Session;
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SearchIndex {

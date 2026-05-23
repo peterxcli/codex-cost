@@ -7,7 +7,7 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{FileFingerprint, FileMetadataParts};
+use crate::models::{FileFingerprint, FileMetadataParts};
 
 pub(crate) fn file_metadata_parts(path: &Path) -> Result<FileMetadataParts> {
     let metadata = fs::metadata(path)

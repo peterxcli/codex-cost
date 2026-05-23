@@ -17,7 +17,11 @@ use ratatui::widgets::{
 };
 use ratatui::{Frame, Terminal};
 
-use crate::{estimate_cost, unique_search_terms, App, Focus, InputMode, LoadProgress, Session};
+use crate::app::{App, Focus, InputMode};
+use crate::models::Session;
+use crate::pricing::estimate_cost;
+use crate::search::unique_search_terms;
+use crate::worker::LoadProgress;
 
 pub(crate) fn match_highlight_style() -> Style {
     Style::default()
@@ -107,16 +111,77 @@ pub(crate) fn search_cursor_position(app: &App, area: Rect) -> Option<(u16, u16)
         .min(max_x);
     Some((x, area.y.saturating_add(1)))
 }
+
+pub(crate) struct TerminalSession {
+    terminal: Terminal<CrosstermBackend<io::Stdout>>,
+    restored: bool,
+}
+
+impl TerminalSession {
+    pub(crate) fn enter() -> Result<Self> {
+        enable_raw_mode()?;
+        let mut stdout = io::stdout();
+        if let Err(err) = execute!(stdout, EnterAlternateScreen) {
+            let _ = disable_raw_mode();
+            return Err(err.into());
+        }
+
+        let backend = CrosstermBackend::new(stdout);
+        let terminal = match Terminal::new(backend) {
+            Ok(terminal) => terminal,
+            Err(err) => {
+                Self::restore_stdout();
+                return Err(err.into());
+            }
+        };
+
+        Ok(Self {
+            terminal,
+            restored: false,
+        })
+    }
+
+    pub(crate) fn terminal_mut(&mut self) -> &mut Terminal<CrosstermBackend<io::Stdout>> {
+        &mut self.terminal
+    }
+
+    pub(crate) fn restore(&mut self) -> Result<()> {
+        if self.restored {
+            return Ok(());
+        }
+        disable_raw_mode()?;
+        execute!(self.terminal.backend_mut(), LeaveAlternateScreen)?;
+        self.terminal.show_cursor()?;
+        self.restored = true;
+        Ok(())
+    }
+
+    fn restore_stdout() {
+        let _ = disable_raw_mode();
+        let mut stdout = io::stdout();
+        let _ = execute!(stdout, LeaveAlternateScreen);
+    }
+}
+
+impl Drop for TerminalSession {
+    fn drop(&mut self) {
+        if self.restored {
+            return;
+        }
+        let _ = disable_raw_mode();
+        let _ = execute!(self.terminal.backend_mut(), LeaveAlternateScreen);
+        let _ = self.terminal.show_cursor();
+    }
+}
+
 pub(crate) fn run_tui(mut app: App) -> Result<()> {
-    enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
+    let mut terminal = TerminalSession::enter()?;
 
     let result = loop {
         app.poll_loader();
-        terminal.draw(|frame| draw(frame, &mut app))?;
+        terminal
+            .terminal_mut()
+            .draw(|frame| draw(frame, &mut app))?;
         if event::poll(Duration::from_millis(200))? {
             if let Event::Key(key) = event::read()? {
                 if app.handle_key(key)? {
@@ -126,9 +191,7 @@ pub(crate) fn run_tui(mut app: App) -> Result<()> {
         }
     };
 
-    disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-    terminal.show_cursor()?;
+    terminal.restore()?;
     result
 }
 
