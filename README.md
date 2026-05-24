@@ -10,6 +10,13 @@ https://github.com/user-attachments/assets/0869bcde-96be-4d98-9c07-c0586b0ea36a
 brew install --cask peterxcli/tap/ccost
 ```
 
+Upgrade:
+
+```bash
+brew update
+brew upgrade --cask ccost
+```
+
 ## Run
 
 ```bash
